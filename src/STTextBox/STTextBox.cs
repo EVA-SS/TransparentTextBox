@@ -426,6 +426,7 @@ namespace TSkin.ST
             c.Caret.IndexOfChar = m_core.Selection.EndIndex;
             c.ITextView.SetCaretPostion(c.Caret.IndexOfChar);
             c.ITextView.ScrollToCaret();
+            c.TextBox.OnTextChanged(null);
             this.Invalidate();
         }
 

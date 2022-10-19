@@ -533,6 +533,7 @@ namespace TSkin.ST
             c.ITextView.SetCaretPostion(c.Caret.IndexOfChar);
             c.Selection.SetIndex(c.Caret.IndexOfChar);
             c.ITextView.ScrollToCaret();
+            c.TextBox.OnTextChanged(null);
         }
         private int FindRightIndex(int nIndex)
         {
