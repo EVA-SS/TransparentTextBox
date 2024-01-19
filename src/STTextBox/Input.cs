@@ -49,6 +49,8 @@ namespace AntDesign
         [Description("Emoji字体"), Category("外观"), DefaultValue("Segoe UI Emoji")]
         public string EmojiFont { get; set; } = "Segoe UI Emoji";
 
+        #region 原生文本框
+
         int selectionStart = 0, selectionStartTemp = 0, selectionLength = 0;
         /// <summary>
         /// 所选文本的起点
@@ -68,6 +70,7 @@ namespace AntDesign
                 if (selectionStart == value) return;
                 selectionStart = selectionStartTemp = value;
                 SetCaretPostion(value);
+                ScrollToX();
             }
         }
 
@@ -83,8 +86,11 @@ namespace AntDesign
                 if (selectionLength == value) return;
                 selectionLength = value;
                 Invalidate();
+                ScrollToX();
             }
         }
+
+        #endregion
 
         #endregion
 
@@ -95,6 +101,7 @@ namespace AntDesign
             var g = e.Graphics.High();
             if (cache_font != null)
             {
+                g.TranslateTransform(-ScrollX, 0);
                 if (selectionLength > 0)
                 {
                     int end = selectionStartTemp + selectionLength - 1;
@@ -129,6 +136,44 @@ namespace AntDesign
             }
             base.OnPaint(e);
         }
+
+        #region 滚动条
+
+        int scrollx = 0;
+        int ScrollX
+        {
+            get => scrollx;
+            set
+            {
+                if (scrollx == value) return;
+                int width = (int)(Width * 0.3F);
+                if (Math.Abs(scrollx - value) < width && ScrollMaxX < scrollx - width) return;
+                scrollx = value;
+                Invalidate();
+                Win32.SetCaretPos(CurrentPos.X - scrollx, CurrentPos.Y);
+            }
+        }
+        int ScrollMaxX = 0;
+        bool ScrollShow = false;
+        void ScrollToX()
+        {
+            if (ScrollShow && selectionStart > 0 && cache_font != null)
+            {
+                int end = (mouseDown ? selectionStartTemp : selectionStart) + selectionLength + 1;
+                if (end > cache_font.Length - 1) end = cache_font.Length - 1;
+                System.Diagnostics.Debug.WriteLine(end);
+                if (cache_font[end].rect.Right > Width)
+                {
+                    int value = cache_font[end].rect.Right / 2;
+                    if (value > ScrollMaxX) value = ScrollMaxX;
+                    ScrollX = value;
+                }
+                else ScrollX = 0;
+            }
+            else ScrollX = 0;
+        }
+
+        #endregion
 
         #endregion
 
@@ -257,6 +302,9 @@ namespace AntDesign
             {
                 it.rect = new Rectangle(rect_text.X + it.x, rect_text.Y, it.width, CaretHeight);
             }
+            var last = cache_font[cache_font.Length - 1];
+            ScrollMaxX = last.rect.Right - rect.Width;
+            ScrollShow = last.rect.Right > rect.Right;
         }
 
         protected override void OnSizeChanged(EventArgs e)
@@ -384,20 +432,24 @@ namespace AntDesign
 
         void ProcessLeftKey()
         {
+            SelectionLength = 0;
             SelectionStart--;
         }
 
         void ProcessRightKey()
         {
+            SelectionLength = 0;
             SelectionStart++;
         }
         void ProcessHomeKey()
         {
+            SelectionLength = 0;
             SelectionStart = 0;
         }
         void ProcessEndKey()
         {
             if (cache_font == null) return;
+            SelectionLength = 0;
             SelectionStart = cache_font.Length;
         }
 
@@ -433,6 +485,9 @@ namespace AntDesign
         /// </summary>
         public void Copy()
         {
+            var text = GetSelectionText();
+            if (text == null) return;
+            Clipboard.SetText(text);
         }
 
         /// <summary>
@@ -440,6 +495,10 @@ namespace AntDesign
         /// </summary>
         public void Cut()
         {
+            var text = GetSelectionText();
+            if (text == null) return;
+            Clipboard.SetText(text);
+            ProcessBackSpaceKey();
         }
 
         /// <summary>
@@ -509,15 +568,71 @@ namespace AntDesign
         void EnterText(string text)
         {
             m_arr.Add(new TextHistoryRecord(this));
-            string text_temp = _text ?? "";
-            if (selectionLength > 0)
-            {
-                text_temp = text_temp.Remove(selectionStart, selectionLength);
-                selectionLength = 0;
-            }
 
-            Text = text_temp.Insert(selectionStart, text);
-            SelectionStart = selectionStart + text.Length;
+            int countSurrogate = 0;
+            foreach (var it in text)
+            {
+                var unicodeInfo = CharUnicodeInfo.GetUnicodeCategory(it);
+                if (unicodeInfo == UnicodeCategory.Surrogate) countSurrogate++;
+            }
+            int len = (text.Length - countSurrogate) + countSurrogate / 2;
+            if (cache_font == null)
+            {
+                Text = text;
+                SelectionStart = selectionStart + len;
+            }
+            else
+            {
+                if (selectionLength > 0)
+                {
+                    int start = selectionStart, end = selectionLength;
+                    m_arr.Add(new TextHistoryRecord(this));
+                    int end_temp = start + end;
+                    var texts = new List<string>();
+                    for (int i = 0; i < cache_font.Length; i++)
+                    {
+                        if (i < start || i >= end_temp)
+                            texts.Add(cache_font[i].text);
+                    }
+                    texts.Insert(start, text);
+                    Text = string.Join("", texts);
+                    SelectionLength = 0;
+                    SelectionStart = start + len;
+                }
+                else
+                {
+                    int start = selectionStart - 1, end = selectionLength;
+                    var texts = new List<string>();
+                    for (int i = 0; i < cache_font.Length; i++)
+                    {
+                        texts.Add(cache_font[i].text);
+                    }
+                    texts.Insert(start + 1, text);
+                    Text = string.Join("", texts);
+                    SelectionStart = start + 1 + len;
+                }
+            }
+        }
+
+        string? GetSelectionText()
+        {
+            if (cache_font == null) return null;
+            else
+            {
+                if (selectionLength > 0)
+                {
+                    int start = selectionStart, end = selectionLength;
+                    int end_temp = start + end;
+                    var texts = new List<string>();
+                    for (int i = 0; i < cache_font.Length; i++)
+                    {
+                        if (i >= start && end_temp > i)
+                            texts.Add(cache_font[i].text);
+                    }
+                    return string.Join("", texts);
+                }
+                return null;
+            }
         }
 
         #region 历史
@@ -544,13 +659,16 @@ namespace AntDesign
 
         #region 鼠标
 
-        bool mouseDown = false;
+        bool mouseDown = false, mouseDownMove = false;
+        int oldMouseDownX = 0;
         protected override void OnMouseDown(MouseEventArgs e)
         {
             base.OnMouseDown(e);
+            mouseDownMove = false;
             Select();
             SelectionLength = 0;
-            SelectionStart = GetCaretPostion(e.Location);
+            oldMouseDownX = e.Location.X;
+            SelectionStart = GetCaretPostion(e.Location.X + scrollx, e.Location.Y);
             if (e.Button == MouseButtons.Left && cache_font != null) mouseDown = true;
         }
         protected override void OnMouseMove(MouseEventArgs e)
@@ -558,8 +676,9 @@ namespace AntDesign
             base.OnMouseMove(e);
             if (mouseDown && cache_font != null)
             {
+                mouseDownMove = true;
                 Cursor = Cursors.IBeam;
-                var index = GetCaretPostion(e.Location);
+                var index = GetCaretPostion(oldMouseDownX + scrollx + (e.Location.X - oldMouseDownX), e.Location.Y);
                 SelectionLength = Math.Abs(index - selectionStart);
                 if (index > selectionStart) selectionStartTemp = selectionStart;
                 else selectionStartTemp = index;
@@ -573,9 +692,9 @@ namespace AntDesign
         protected override void OnMouseUp(MouseEventArgs e)
         {
             base.OnMouseUp(e);
-            if (mouseDown && cache_font != null)
+            if (mouseDown && mouseDownMove && cache_font != null)
             {
-                var index = GetCaretPostion(e.Location);
+                var index = GetCaretPostion(e.Location.X + scrollx, e.Location.Y);
                 if (selectionStart == index) SelectionLength = 0;
                 else if (index > selectionStart)
                 {
@@ -704,7 +823,7 @@ namespace AntDesign
         }
 
         Point CurrentPos = new Point(0, 0);
-        int GetCaretPostion(Point point)
+        int GetCaretPostion(int x, int y)
         {
             if (cache_font == null) return 0;
             else
@@ -712,13 +831,13 @@ namespace AntDesign
                 for (int i = 0; i < cache_font.Length; i++)
                 {
                     var it = cache_font[i];
-                    if (it.rect.X <= point.X && it.rect.Right >= point.X)
+                    if (it.rect.X <= x && it.rect.Right >= x)
                     {
-                        if (point.X > it.rect.X + it.rect.Width / 2) return i + 1;
+                        if (x > it.rect.X + it.rect.Width / 2) return i + 1;
                         else return i;
                     }
                 }
-                if (point.X > cache_font[cache_font.Length - 1].rect.Right) return cache_font.Length;
+                if (x > cache_font[cache_font.Length - 1].rect.Right) return cache_font.Length;
                 else return 0;
             }
         }
@@ -727,9 +846,9 @@ namespace AntDesign
         {
             if (showCaret && cache_font != null)
             {
-                if (selectionStart >= cache_font.Length) CurrentPos.X = cache_font[cache_font.Length - 1].rect.Right;
+                if (selectionStart >= cache_font.Length) CurrentPos.X = cache_font[cache_font.Length - 1].rect.Right - 1;
                 else CurrentPos.X = cache_font[selectionStart].rect.X;
-                Win32.SetCaretPos(CurrentPos.X, CurrentPos.Y);
+                Win32.SetCaretPos(CurrentPos.X - ScrollX, CurrentPos.Y);
             }
         }
 

@@ -22,7 +22,7 @@ namespace examples
             var rect = ClientRectangle;
             if (rect.Width > 0 && rect.Height > 0)
             {
-                Graphics g = e.Graphics;
+                var g = e.Graphics.High();
                 using (var brush = new LinearGradientBrush(rect, Color.White, Color.Transparent, LinearGradientMode.BackwardDiagonal)
                 {
                     LinearColors = new Color[] {

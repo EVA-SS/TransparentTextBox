@@ -18,6 +18,7 @@
 - TextBox `ReadOnly` 只读
 - TextBox `MaxLength` 文本最大长度
 - TextBox `PasswordChar` 自定义密码字符
+- 滚动条
 
 > 已知问题
 > 剪贴等部分交互暂未完成
