@@ -1,37 +1,10 @@
-﻿using System;
-using System.Drawing;
-using System.Runtime.InteropServices;
+﻿using System.Runtime.InteropServices;
 using System.Text;
 
-namespace TSkin.ST
+namespace AntDesign
 {
-    internal class Win32
+    public class Win32
     {
-        //[DllImport("user32.dll")]
-        //public static extern IntPtr GetDC(IntPtr hWnd);
-        //[DllImport("user32.dll")]
-        //public static extern int ReleaseDC(IntPtr hWnd, IntPtr hDC);
-        //[DllImport("gdi32.dll")]
-        //public static extern IntPtr CreateCompatibleDC(IntPtr hDC);
-        //[DllImport("gdi32.dll")]
-        //public static extern bool DeleteDC(IntPtr hDC);
-        //[DllImport("gdi32.dll")]
-        //public static extern IntPtr CreateCompatibleBitmap(IntPtr hDC, int nWidth, int nHeight);
-        //[DllImport("gdi32.dll")]
-        //public static extern IntPtr SelectObject(IntPtr hDC, IntPtr hObject);
-        //[DllImport("gdi32.dll")]
-        //public static extern bool DeleteObject(IntPtr hObject);
-        //[DllImport("gdi32.dll")]
-        //public static extern int SetBkMode(IntPtr hDC, int iBkMode);
-        //[DllImport("gdi32.dll")]
-        //public static extern int SetTextCharacterExtra(IntPtr hDC, int nCharExtra);
-        //[DllImport("gdi32.dll")]
-        //public static extern uint SetTextColor(IntPtr hdc, int color);
-        //[DllImport("gdi32.dll", CharSet = CharSet.Unicode)]
-        //public static extern bool TextOut(IntPtr hdc, int nXStart, int nYStart, string lpString, int cbString);
-        //[DllImport("gdi32.dll", CharSet = CharSet.Auto)]
-        //public static extern bool GetTextExtentPoint32(IntPtr hdc, string lpString, int cbString, ref Size lpSize);
-
         [DllImport("user32.dll")]
         public static extern bool CreateCaret(IntPtr hWnd, IntPtr hBitmap, int nWidth, int nHeight);
         [DllImport("user32.dll")]

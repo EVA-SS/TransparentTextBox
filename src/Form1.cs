@@ -6,6 +6,15 @@ namespace examples
     {
         public Form1()
         {
+            SetStyle(
+               ControlStyles.AllPaintingInWmPaint |
+               ControlStyles.OptimizedDoubleBuffer |
+               ControlStyles.ResizeRedraw |
+               ControlStyles.DoubleBuffer |
+               ControlStyles.SupportsTransparentBackColor |
+               ControlStyles.ContainerControl |
+               ControlStyles.UserPaint, true);
+            UpdateStyles();
             InitializeComponent();
         }
         protected override void OnPaint(PaintEventArgs e)
