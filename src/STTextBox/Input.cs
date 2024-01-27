@@ -70,7 +70,7 @@ namespace AntDesign
                 if (selectionStart == value) return;
                 selectionStart = selectionStartTemp = value;
                 SetCaretPostion(value);
-                ScrollToX();
+                ScrollToX(value);
             }
         }
 
@@ -85,8 +85,12 @@ namespace AntDesign
             {
                 if (selectionLength == value) return;
                 selectionLength = value;
+                if (!mouseDown)
+                {
+                    SetCaretPostion(selectionStart+value);
+                    ScrollToX(selectionStart + value);
+                }
                 Invalidate();
-                ScrollToX();
             }
         }
 
@@ -139,38 +143,53 @@ namespace AntDesign
 
         #region 滚动条
 
-        int scrollx = 0;
+        int scrollx = 0, ScrollMaxX = 0;
         int ScrollX
         {
             get => scrollx;
             set
             {
+                if (value < 0) value = 0;
+                else if (value > ScrollMaxX) value = ScrollMaxX;
                 if (scrollx == value) return;
-                int width = (int)(Width * 0.3F);
-                if (Math.Abs(scrollx - value) < width && ScrollMaxX < scrollx - width) return;
                 scrollx = value;
                 Invalidate();
-                Win32.SetCaretPos(CurrentPos.X - scrollx, CurrentPos.Y);
             }
         }
-        int ScrollMaxX = 0;
+
         bool ScrollShow = false;
-        void ScrollToX()
+        void ScrollToX(int index)
         {
-            if (ScrollShow && selectionStart > 0 && cache_font != null)
+            if (ScrollShow && cache_font != null)
             {
-                int end = (mouseDown ? selectionStartTemp : selectionStart) + selectionLength + 1;
-                if (end > cache_font.Length - 1) end = cache_font.Length - 1;
-                System.Diagnostics.Debug.WriteLine(end);
-                if (cache_font[end].rect.Right > Width)
+                bool flag = false;
+                Point pt = CurrentPos;
+                //if (pt.Y < rect_text.Y)
+                //{
+                //    c.Scroll.YValue += (pt.Y - rect_text.Y) / c.LineHeight;
+                //    flag = true;
+                //}
+                //else if (pt.Y + c.LineHeight > rect_text.Bottom)
+                //{
+                //    int nIncrement = (int)Math.Ceiling((pt.Y + c.LineHeight - rect_text.Bottom) / (float)c.LineHeight);
+                //    c.Scroll.YValue += nIncrement;
+                //    flag = true;
+                //}
+                if (pt.X >= rect_text.Right)
                 {
-                    int value = cache_font[end].rect.Right / 2;
-                    if (value > ScrollMaxX) value = ScrollMaxX;
-                    ScrollX = value;
+                    int nIncrement = pt.X - rect_text.Right;
+                    ScrollX = scrollx + nIncrement;
+                    flag = true;
                 }
-                else ScrollX = 0;
+                else if (pt.X < rect_text.X)
+                {
+                    int nIncrement = rect_text.X - pt.X;
+                    ScrollX = scrollx - nIncrement;
+                    flag = true;
+                }
+                if (flag) SetCaretPostion(index);
             }
-            else ScrollX = 0;
+            else scrollx = 0;
         }
 
         #endregion
@@ -303,7 +322,7 @@ namespace AntDesign
                 it.rect = new Rectangle(rect_text.X + it.x, rect_text.Y, it.width, CaretHeight);
             }
             var last = cache_font[cache_font.Length - 1];
-            ScrollMaxX = last.rect.Right - rect.Width;
+            ScrollMaxX = last.rect.Right - rect.Width + sps;
             ScrollShow = last.rect.Right > rect.Right;
         }
 
@@ -679,9 +698,11 @@ namespace AntDesign
                 mouseDownMove = true;
                 Cursor = Cursors.IBeam;
                 var index = GetCaretPostion(oldMouseDownX + scrollx + (e.Location.X - oldMouseDownX), e.Location.Y);
+                SetCaretPostion(index);
                 SelectionLength = Math.Abs(index - selectionStart);
                 if (index > selectionStart) selectionStartTemp = selectionStart;
                 else selectionStartTemp = index;
+                ScrollToX(index);
             }
             else
             {
@@ -842,13 +863,13 @@ namespace AntDesign
             }
         }
 
-        void SetCaretPostion(int selectionStart)
+        void SetCaretPostion(int index)
         {
-            if (showCaret && cache_font != null)
+            if (cache_font != null)
             {
-                if (selectionStart >= cache_font.Length) CurrentPos.X = cache_font[cache_font.Length - 1].rect.Right - 1;
-                else CurrentPos.X = cache_font[selectionStart].rect.X;
-                Win32.SetCaretPos(CurrentPos.X - ScrollX, CurrentPos.Y);
+                if (index >= cache_font.Length) CurrentPos.X = cache_font[cache_font.Length - 1].rect.Right - 1 - ScrollX;
+                else CurrentPos.X = cache_font[index].rect.X - ScrollX;
+                if (showCaret) Win32.SetCaretPos(CurrentPos.X, CurrentPos.Y);
             }
         }
 
