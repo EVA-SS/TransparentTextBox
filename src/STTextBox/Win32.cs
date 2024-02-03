@@ -85,7 +85,7 @@ namespace AntDesign
             {
                 return null;
             }
-            int nLen = Win32.ImmGetCompositionString(hIMC, dwIndex, m_byString, m_byString.Length);
+            int nLen = ImmGetCompositionString(hIMC, dwIndex, m_byString, m_byString.Length);
             return Encoding.Unicode.GetString(m_byString, 0, nLen);
         }
     }

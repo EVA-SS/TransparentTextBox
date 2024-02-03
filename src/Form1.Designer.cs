@@ -28,7 +28,7 @@
         /// </summary>
         private void InitializeComponent()
         {
-            input1 = new AntDesign.Input();
+            input1 = new AntDesign.TextBox();
             SuspendLayout();
             // 
             // input1
@@ -59,6 +59,6 @@
 
         #endregion
 
-        private AntDesign.Input input1;
+        private AntDesign.TextBox input1;
     }
 }
