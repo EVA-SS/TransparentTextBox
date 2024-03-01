@@ -13,7 +13,6 @@ namespace AntDesign
         /// </summary>
         public TextBox()
         {
-            m_sf.FormatFlags |= StringFormatFlags.MeasureTrailingSpaces;
             SetStyle(
                ControlStyles.AllPaintingInWmPaint |
                ControlStyles.OptimizedDoubleBuffer |
@@ -120,6 +119,23 @@ namespace AntDesign
             {
                 if (multiline == value) return;
                 multiline = value;
+                CalculateRect();
+                Invalidate();
+            }
+        }
+
+        HorizontalAlignment textalign = HorizontalAlignment.Left;
+        /// <summary>
+        /// 文本对齐方向
+        /// </summary>
+        [Description("文本对齐方向"), Category("外观"), DefaultValue(HorizontalAlignment.Left)]
+        public HorizontalAlignment TextAlign
+        {
+            get => textalign;
+            set
+            {
+                if (textalign == value) return;
+                textalign = value;
                 CalculateRect();
                 Invalidate();
             }
@@ -448,6 +464,8 @@ namespace AntDesign
             FixFontWidth();
         }
 
+        #region 焦点
+
         protected override void OnGotFocus(EventArgs e)
         {
             base.OnGotFocus(e);
@@ -459,6 +477,8 @@ namespace AntDesign
             base.OnLostFocus(e);
             ShowCaret = false;
         }
+
+        #endregion
 
         #region 系统消息
 
@@ -586,39 +606,42 @@ namespace AntDesign
             CurrentPosIndex = selectionStart;
             if (showCaret)
             {
-                if (cache_font != null)
+                if (cache_font == null) Win32.SetCaretPos(CurrentCaret.X - scrollx, CurrentCaret.Y - scrolly);
+                else
                 {
+                    Rectangle r;
                     if (selectionStart >= cache_font.Length)
                     {
-                        var r = cache_font[cache_font.Length - 1].rect;
+                        r = cache_font[cache_font.Length - 1].rect;
                         CurrentCaret.X = r.Right - 1;
                         CurrentCaret.Y = r.Y;
                     }
                     else
                     {
-                        var r = cache_font[selectionStart].rect;
+                        r = cache_font[selectionStart].rect;
                         CurrentCaret.X = r.X;
                         CurrentCaret.Y = r.Y;
                     }
                     Win32.SetCaretPos(CurrentCaret.X - scrollx, CurrentCaret.Y - scrolly);
-                    ScrollTo(cache_font);
+                    ScrollTo(r);
                 }
-                else Win32.SetCaretPos(CurrentCaret.X - scrollx, CurrentCaret.Y - scrolly);
             }
         }
 
         void OnImeStartPrivate(IntPtr hIMC)
         {
+            var point = CurrentCaret.Location;
+            point.Offset(0, -scrolly);
             var CandidateForm = new Win32.CANDIDATEFORM()
             {
                 dwStyle = Win32.CFS_CANDIDATEPOS,
-                ptCurrentPos = CurrentCaret.Location,
+                ptCurrentPos = point,
             };
             Win32.ImmSetCandidateWindow(hIMC, ref CandidateForm);
             var CompositionForm = new Win32.COMPOSITIONFORM()
             {
                 dwStyle = Win32.CFS_FORCE_POSITION,
-                ptCurrentPos = CurrentCaret.Location,
+                ptCurrentPos = point,
             };
             Win32.ImmSetCompositionWindow(hIMC, ref CompositionForm);
             var logFont = new Win32.LOGFONT()
@@ -640,6 +663,7 @@ namespace AntDesign
                 ptCurrentPos = CurrentCaret.Location
             };
             Win32.ImmSetCompositionWindow(hIMC, ref CompositionForm);
+            EnterText(strResult);
         }
 
         #endregion

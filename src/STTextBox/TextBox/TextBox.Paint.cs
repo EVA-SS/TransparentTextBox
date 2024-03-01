@@ -13,73 +13,100 @@ namespace AntDesign
         protected override void OnPaint(PaintEventArgs e)
         {
             var g = e.Graphics.High();
-            if (cache_font != null)
+            bool enabled = Enabled;
+            if (enabled)
             {
-                g.TranslateTransform(-ScrollX, -ScrollY);
-                if (selectionLength > 0)
+                using (var bmp = PaintText(ForeColor, Width, Height))
                 {
-                    int end = selectionStartTemp + selectionLength - 1;
-                    if (end > cache_font.Length - 1) end = cache_font.Length - 1;
-                    CacheFont first = cache_font[selectionStartTemp];
-                    using (var brush = new SolidBrush(Color.FromArgb(173, 214, 255)))
-                    {
-                        for (int i = selectionStartTemp; i <= end; i++)
-                        {
-                            var last = cache_font[i];
-                            if (i == end) g.FillRectangle(brush, new Rectangle(first.rect.X, first.rect.Y, last.rect.Right - first.rect.X, first.rect.Height));
-                            else if (first.rect.Y != last.rect.Y)
-                            {
-                                last = cache_font[i - 1];
-                                g.FillRectangle(brush, new Rectangle(first.rect.X, first.rect.Y, last.rect.Right - first.rect.X, first.rect.Height));
-                                first = cache_font[i];
-                            }
-                        }
-                    }
-                }
-                using (var fore = new SolidBrush(ForeColor))
-                {
-                    if (HasEmoji)
-                    {
-                        using (var font = new Font(EmojiFont, Font.Size))
-                        {
-                            foreach (var it in cache_font)
-                            {
-                                if (it.emoji) g.DrawString(it.text, font, fore, it.rect, m_sf);
-                                else g.DrawString(it.text, Font, fore, it.rect, m_sf);
-                            }
-                        }
-                    }
-                    else
-                    {
-                        foreach (var it in cache_font)
-                        {
-                            g.DrawString(it.text, Font, fore, it.rect, m_sf);
-                        }
-                    }
+                    g.DrawImage(bmp, rect_text, rect_text, GraphicsUnit.Pixel);
                 }
             }
-            else if (placeholderText != null)
+            else
             {
-                using (var fore = new SolidBrush(Color.FromArgb(100, ForeColor)))
+                using (var bmp = PaintText(Color.FromArgb(100, ForeColor), Width, Height))
                 {
-                    g.DrawString(placeholderText, Font, fore, rect_text, multiline ? stringTL : stringLeft);
+                    g.DrawImage(bmp, rect_text, rect_text, GraphicsUnit.Pixel);
                 }
             }
             base.OnPaint(e);
         }
 
+        #region 渲染帮助
+
+        Bitmap PaintText(Color _fore, int w, int h)
+        {
+            var bmp = new Bitmap(w, h);
+            using (var g = Graphics.FromImage(bmp).High())
+            {
+                g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAlias;
+                if (cache_font != null)
+                {
+                    g.TranslateTransform(-ScrollX, -ScrollY);
+                    if (selectionLength > 0)
+                    {
+                        int end = selectionStartTemp + selectionLength - 1;
+                        if (end > cache_font.Length - 1) end = cache_font.Length - 1;
+                        CacheFont first = cache_font[selectionStartTemp];
+                        using (var brush = new SolidBrush(Color.FromArgb(173, 214, 255)))
+                        {
+                            for (int i = selectionStartTemp; i <= end; i++)
+                            {
+                                var last = cache_font[i];
+                                if (first.rect.Y != last.rect.Y || last.retun)
+                                {
+                                    //先渲染上一行
+                                    g.FillRectangle(brush, new Rectangle(first.rect.X, first.rect.Y, cache_font[i - 1].rect.Right - first.rect.X, first.rect.Height));
+                                    if (i == end) g.FillRectangle(brush, last.rect);
+                                    first = last;
+                                }
+                                else if (i == end) g.FillRectangle(brush, new Rectangle(first.rect.X, first.rect.Y, last.rect.Right - first.rect.X, first.rect.Height));
+                            }
+                        }
+                    }
+                    using (var fore = new SolidBrush(_fore))
+                    {
+                        if (HasEmoji)
+                        {
+                            using (var font = new Font(EmojiFont, Font.Size))
+                            {
+                                foreach (var it in cache_font)
+                                {
+                                    if (it.emoji) g.DrawString(it.text, font, fore, it.rect, m_sf);
+                                    else g.DrawString(it.text, Font, fore, it.rect, m_sf);
+                                }
+                            }
+                        }
+                        else
+                        {
+                            foreach (var it in cache_font) g.DrawString(it.text, Font, fore, it.rect, m_sf);
+                        }
+                    }
+                }
+                else if (placeholderText != null)
+                {
+                    using (var fore = new SolidBrush(Color.FromArgb(100, ForeColor)))
+                    {
+                        g.DrawString(placeholderText, Font, fore, rect_text, multiline ? stringTL : stringLeft);
+                    }
+                }
+            }
+            return bmp;
+        }
+
+        #endregion
+
         #endregion
 
         #region 滚动条
 
-        int scrollx = 0, scrolly = 0, ScrollXMax = 0, ScrollYMax = 0;
+        int scrollx = 0, scrolly = 0, ScrollXMin = 0, ScrollXMax = 0, ScrollYMax = 0;
         int ScrollX
         {
             get => scrollx;
             set
             {
                 if (value > ScrollXMax) value = ScrollXMax;
-                if (value < 0) value = 0;
+                if (value < ScrollXMin) value = ScrollXMin;
                 if (scrollx == value) return;
                 scrollx = value;
                 Invalidate();
@@ -101,7 +128,7 @@ namespace AntDesign
         }
 
         bool ScrollXShow = false, ScrollYShow = false;
-        void ScrollTo(CacheFont[] cache_font)
+        void ScrollTo(Rectangle r)
         {
             if (ScrollYShow)
             {
@@ -112,8 +139,8 @@ namespace AntDesign
             else if (ScrollXShow)
             {
                 int x = CurrentCaret.X - scrollx;
-                if (x < rect_text.X) ScrollX -= cache_font[0].width;
-                else if (x + CurrentCaret.Width > rect_text.Width) ScrollX += cache_font[0].width;
+                if (x < rect_text.X) ScrollX -= r.Width;
+                else if (x + CurrentCaret.Width > rect_text.Width) ScrollX += r.Width;
             }
             else ScrollX = ScrollY = 0;
         }
@@ -124,7 +151,7 @@ namespace AntDesign
 
         #region 确定字体宽度
 
-        StringFormat m_sf = new StringFormat(StringFormat.GenericTypographic) { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+        StringFormat m_sf = new StringFormat(StringFormat.GenericTypographic) { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center, FormatFlags = StringFormatFlags.MeasureTrailingSpaces };
 
         CacheFont[]? cache_font = null;
         bool HasEmoji = false;
@@ -179,12 +206,13 @@ namespace AntDesign
                                 else
                                 {
                                     iseone = false;
-                                    if (it == '\t' || it == '\n')
+                                    if (it == '\t')
                                     {
                                         var sizefont = g.MeasureString(" ", Font, 10000, m_sf);
                                         if (font_height < sizefont.Height) font_height = (int)Math.Ceiling(sizefont.Height);
                                         font_widths.Add(new CacheFont(txt, false, (int)Math.Ceiling(sizefont.Width * 8F)));
                                     }
+                                    else if (it == '\n') font_widths.Add(new CacheFont(txt, false, 0));
                                     else
                                     {
                                         var sizefont = g.MeasureString(txt, Font, 10000, m_sf);
@@ -241,6 +269,7 @@ namespace AntDesign
             public string text { get; set; }
             public Rectangle rect { get; set; }
             public bool emoji { get; set; }
+            public bool retun { get; set; }
             public int width { get; set; }
         }
 
@@ -262,11 +291,18 @@ namespace AntDesign
                     int usex = 0, usey = 0;
                     foreach (var it in cache_font)
                     {
-                        if (it.text == "\r") continue;
-                        if (it.text == "\n")
+                        if (it.text == "\r")
                         {
+                            it.retun = true;
+                            it.rect = new Rectangle(rect_text.X + usex, rect_text.Y + usey, it.width, CurrentCaret.Height);
+                            continue;
+                        }
+                        else if (it.text == "\n")
+                        {
+                            it.retun = true;
                             usey += CurrentCaret.Height;
                             usex = 0;
+                            it.rect = new Rectangle(rect_text.X + usex, rect_text.Y + usey, it.width, CurrentCaret.Height);
                             continue;
                         }
                         else if (usex + it.width > rect_text.Width)
@@ -288,8 +324,85 @@ namespace AntDesign
                     }
                 }
 
+                if (textalign == HorizontalAlignment.Right)
+                {
+                    int y = -1;
+                    var list = new List<CacheFont>();
+                    Action action = () =>
+                    {
+                        if (list.Count > 0)
+                        {
+                            int w = rect_text.Right - list[list.Count - 1].rect.Right;
+                            foreach (var it in list)
+                            {
+                                var rect_tmp = it.rect;
+                                rect_tmp.Offset(w, 0);
+                                it.rect = rect_tmp;
+                            }
+                            list.Clear();
+                        }
+                    };
+                    foreach (var it in cache_font)
+                    {
+                        if (it.rect.Y != y)
+                        {
+                            y = it.rect.Y;
+                            action();
+                        }
+                        list.Add(it);
+                    }
+                    action();
+                }
+                else if (textalign == HorizontalAlignment.Center)
+                {
+                    int y = -1;
+                    var list = new List<CacheFont>();
+                    Action action = () =>
+                    {
+                        if (list.Count > 0)
+                        {
+                            int w = (rect_text.Right - list[list.Count - 1].rect.Right) / 2;
+                            foreach (var it in list)
+                            {
+                                var rect_tmp = it.rect;
+                                rect_tmp.Offset(w, 0);
+                                it.rect = rect_tmp;
+                            }
+                            list.Clear();
+                        }
+                    };
+                    foreach (var it in cache_font)
+                    {
+                        if (it.rect.Y != y)
+                        {
+                            y = it.rect.Y;
+                            action();
+                        }
+                        list.Add(it);
+                    }
+                    action();
+                }
+
                 var last = cache_font[cache_font.Length - 1];
-                ScrollXMax = last.rect.Right - rect.Width;
+                ScrollXMax = last.rect.Right - rect.Width + sps;
+                switch (textalign)
+                {
+                    case HorizontalAlignment.Center:
+                        if (ScrollXMax > 0) ScrollXMin = -ScrollXMax;
+                        else
+                        {
+                            ScrollXMin = ScrollXMax;
+                            ScrollXMax = -ScrollXMax;
+                        }
+                        break;
+                    case HorizontalAlignment.Right:
+                        ScrollXMin = cache_font[0].rect.Right - rect.Width + sps;
+                        ScrollXMax = 0;
+                        break;
+                    default:
+                        ScrollXMin = 0;
+                        break;
+                }
                 ScrollYMax = last.rect.Bottom - rect.Height + sps;
                 if (multiline)
                 {
@@ -306,7 +419,8 @@ namespace AntDesign
                 {
                     ScrollYShow = false;
                     ScrollY = 0;
-                    ScrollXShow = last.rect.Right > rect.Right;
+                    if (textalign == HorizontalAlignment.Right) ScrollXShow = last.rect.Right < rect.Right;
+                    else ScrollXShow = last.rect.Right > rect.Right;
                     if (ScrollXShow)
                     {
                         if (ScrollX > ScrollXMax) ScrollX = ScrollXMax;

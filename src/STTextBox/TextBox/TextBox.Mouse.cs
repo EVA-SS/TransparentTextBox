@@ -10,6 +10,22 @@
         protected override void OnMouseDown(MouseEventArgs e)
         {
             base.OnMouseDown(e);
+            if (e.Button == MouseButtons.Left && cache_font != null && e.Clicks > 1)
+            {
+                mouseDownMove = mouseDown = false;
+
+                var index = GetCaretPostion(e.Location.X + scrollx, e.Location.Y + scrolly);
+
+                int start = 0, end = 1;
+
+                if (index > 0) start = FindStart(cache_font, index - 2);
+                if (index < cache_font.Length) end = FindEnd(cache_font, index);
+
+                SelectionStart = start;
+                SelectionLength = end - start;
+
+                return;
+            }
             mouseDownMove = false;
             Select();
             oldMouseDown = e.Location;
@@ -60,59 +76,47 @@
             mouseDown = false;
         }
 
-        string[] sptext = new string[]{
+        List<string> sptext = new List<string>{
             "，",
             ",",
             "。",
             ".",
             "；",
             ";",
+            " ",
 
             "\r","\t","\n"
         };
-        protected override void OnMouseDoubleClick(MouseEventArgs e)
+
+        /// <summary>
+        /// 查找前面
+        /// </summary>
+        int FindStart(CacheFont[] cache_font, int index)
         {
-            base.OnMouseDoubleClick(e);
-            if (cache_font != null)
+            for (int i = index; i >= 0; i--)
             {
-                var index = GetCaretPostion(e.Location.X + scrollx, e.Location.Y + scrolly);
-
-                int start = 0, end = cache_font.Length;
-
-                #region 查找前面
-
-                if (index > 0)
+                if (sptext.Contains(cache_font[i].text))
                 {
-                    var is_ = new List<int>();
-                    for (int i = 0; i < index; i++)
-                    {
-                        if (sptext.Contains(cache_font[i].text)) is_.Add(i);
-                    }
-                    if (is_.Count > 0)
-                        start = is_[is_.Count - 1] + 1;
+                    return i + 1;
                 }
-
-                #endregion
-
-                #region 查找后面
-
-                if (index < end)
-                {
-                    for (int i = index; i < end; i++)
-                    {
-                        if (sptext.Contains(cache_font[i].text))
-                        {
-                            end = i;
-                            i = end;
-                        }
-                    }
-                }
-
-                #endregion
-
-                SelectionStart = start;
-                SelectionLength = end - start;
             }
+            return 0;
+        }
+
+        /// <summary>
+        /// 查找后面
+        /// </summary>
+        int FindEnd(CacheFont[] cache_font, int index)
+        {
+            int end = cache_font.Length;
+            for (int i = index; i < end; i++)
+            {
+                if (sptext.Contains(cache_font[i].text))
+                {
+                    return i;
+                }
+            }
+            return end;
         }
     }
 }
